@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Oswald:wght@400;600;700&display=swap");
+
+:root {
+  --bg: #0b1412;
+  --bg-card: rgba(18, 28, 26, 0.8);
+  --bg-card-strong: #13221f;
+  --text: #f0f0e7;
+  --muted: #9bb0a7;
+  --primary: #2ea65a;
+  --accent: #f1c453;
+  --border: #1f2f2b;
+}
+
+html,
+body,
+[class*="stApp"] {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "Inter", sans-serif;
+}
+
+h1,
+h2,
+h3,
+.display-font {
+  font-family: "Oswald", sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.hero {
+  position: relative;
+  min-height: 240px;
+  border-radius: 18px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--border);
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(4, 11, 10, 0.8), rgba(15, 26, 23, 0.4));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 2rem;
+}
+
+.hero-title {
+  font-size: 2.3rem;
+  margin: 0 0 0.4rem 0;
+}
+
+.hero-subtitle {
+  color: var(--muted);
+  margin: 0;
+}
+
+.section-title {
+  font-size: 1.6rem;
+  margin: 0.4rem 0 1rem 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+.kpi-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-top: 0.35rem;
+}
+
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.champion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.8rem;
+}
+
+.champion-card {
+  background: var(--bg-card-strong);
+  border-radius: 12px;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+}
+
+.champion-card h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.1rem;
+}
+
+.champion-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chat-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  margin-bottom: 0.6rem;
+  line-height: 1.45;
+}
+
+.chat-user {
+  background: rgba(46, 166, 90, 0.2);
+  border: 1px solid rgba(46, 166, 90, 0.35);
+}
+
+.chat-assistant {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+
+.muted-text {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(241, 196, 83, 0.15);
+  color: var(--accent);
+  font-size: 0.75rem;
+  margin-left: 0.4rem;
+}
