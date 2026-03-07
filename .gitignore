@@ -1,0 +1,111 @@
+# === OS / Editor ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+
+# === Logs / temp ===
+*.log
+logs/
+*.tmp
+*.bak
+*.old
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.coverage
+coverage/
+htmlcov/
+.tox/
+.nox/
+
+# === Virtual environments ===
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-bld/
+*.conda
+
+# === Jupyter ===
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+.jupyter/
+
+# === Streamlit ===
+.streamlit/
+
+# === Node / Next / Vite ===
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnpm-store/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next/
+out/
+dist/
+dist-ssr/
+build/
+coverage/
+.turbo/
+.vercel/
+*.local
+
+# === Data science / ML artifacts ===
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.parquet
+*.feather
+*.arrow
+*.sqlite
+*.db
+*.tar
+*.gz
+*.zip
+catboost_info/
+
+# === Environment / secrets ===
+.env
+.env.*
+!.env.example
+
+# === IDE / tooling ===
+.cursor/
+.codex/
+*.code-workspace
+
+# === UV / pip ===
+.uv/
+pip-log.txt
+pip-delete-this-directory.txt
