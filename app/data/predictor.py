@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import math
 import sys
 import types
 from pathlib import Path
@@ -50,23 +52,75 @@ import pandas as pd
 from data.prediction_2026 import (
     DATA_DIR,
     MODELS_DIR,
+    PROJECT_ROOT,
     get_ranking_score,
     get_team_code,
     load_rankings,
     normalize_stage,
+    _team_for_features,
 )
 
 DEFAULT_POINTS = 1500.0
 
 
-def _round_goal(x: float) -> int:
-    """Round predicted goals to non-negative integer."""
-    return max(0, int(round(x)))
+def _poisson_score_probability(lam: float, k: int) -> float:
+    """P(X=k) for Poisson with mean lam."""
+    if k < 0:
+        return 0.0
+    return float(np.exp(-lam) * (lam**k) / math.factorial(k))
+
+
+def _lambda_to_score(
+    lambda_home: float,
+    lambda_away: float,
+    max_goals: int = 8,
+    seed: int | None = None,
+) -> tuple[int, int]:
+    """
+    Convert predicted λ (expected goals) to integer score.
+
+    Uses weighted sampling from top likely scores, constrained to outcomes
+    that match the expected direction (home favored when λ_home > λ_away).
+    Produces varied scores (1-0, 2-1, 2-0, 1-1, etc.) instead of collapsing
+    to a single mode like 1-0 or 2-1 for all matches.
+    """
+    lam_h = max(0.01, float(lambda_home))
+    lam_a = max(0.01, float(lambda_away))
+
+    # Build scores and probabilities
+    candidates: list[tuple[int, int, float]] = []
+    for h in range(max_goals + 1):
+        for a in range(max_goals + 1):
+            prob = _poisson_score_probability(lam_h, h) * _poisson_score_probability(lam_a, a)
+            # Constrain to direction implied by λ (avoids home-favorite → 1-2)
+            if lam_h > lam_a + 0.1 and h < a:
+                continue  # home favored, skip away-win scores
+            if lam_a > lam_h + 0.1 and h > a:
+                continue  # away favored, skip home-win scores
+            candidates.append((h, a, prob))
+
+    if not candidates:
+        return (int(round(lam_h)), int(round(lam_a)))
+
+    candidates.sort(key=lambda x: x[2], reverse=True)
+    top = candidates[:10]
+    total = sum(p for _, _, p in top)
+    if total <= 0:
+        return (int(round(lam_h)), int(round(lam_a)))
+
+    weights = np.array([p / total for _, _, p in top])
+    rng = np.random.default_rng(seed)
+    idx = int(rng.choice(len(top), p=weights))
+    return (top[idx][0], top[idx][1])
 
 
 def load_artifact(model_name: str) -> dict | None:
     """Load model artifact by name (without .joblib)."""
     _ensure_unpickle_compat()
+    # v3 model was saved from analysis/ and references analysis.ml_utils; add project root to path
+    project_root = str(PROJECT_ROOT)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
     path = MODELS_DIR / f"{model_name}.joblib"
     if not path.exists() or path.stat().st_size == 0:
         return None
@@ -80,22 +134,27 @@ def build_feature_row(
     feature_cols: list[str],
     rankings: pd.DataFrame,
     ml_medians: dict | None = None,
+    model_name: str = "",
 ) -> pd.DataFrame:
-    """Build a feature row for prediction using a template from ml_df + our rankings."""
+    """Build a feature row for prediction using a template from ml_df/ml_df_v2 + our rankings."""
     home_points = get_ranking_score(home_team, rankings)
     away_points = get_ranking_score(away_team, rankings)
     ranking_diff = home_points - away_points
     elo_diff = home_points - away_points
     stage_norm = normalize_stage(stage)
 
+    # Use team names in ml_df format for correct OneHotEncoder encoding
+    home_team_feat = _team_for_features(home_team)
+    away_team_feat = _team_for_features(away_team)
+
     # Start from a template row so categoricals match training data format
-    template = _get_ml_template_row(feature_cols)
+    template = _get_ml_template_row(feature_cols, model_name)
     row = template.copy() if template else {c: np.nan for c in feature_cols}
 
     # Override with our match-specific values
     overrides = {
-        "home_team": home_team,
-        "away_team": away_team,
+        "home_team": home_team_feat,
+        "away_team": away_team_feat,
         "stage": stage_norm,
         "tournament_name": "2026 FIFA World Cup",
         "host_country": "USA",
@@ -115,6 +174,26 @@ def build_feature_row(
         "goals_scored_tournament": 0,
         "avg_goals_per_game": 2.7,
     }
+    # v3/v4 use ml_df_v2/v4 features: no prior 2026 tournament goals
+    if model_name in ("worldcup_model_v3", "worldcup_model_v4"):
+        overrides.update({
+            "home_wc_goals_before": 0,
+            "away_wc_goals_before": 0,
+            "wc_goals_diff_before": 0,
+            "home_wc_unique_scorers_before": 0,
+            "away_wc_unique_scorers_before": 0,
+            "home_wc_penalty_goals_before": 0,
+            "away_wc_penalty_goals_before": 0,
+        })
+    # v4: neutral venue and home advantage (2026 joint hosts = USA, Mexico, Canada)
+    if model_name == "worldcup_model_v4":
+        HOSTS_2026 = {"United States", "USA", "Mexico", "Canada"}
+        home_feat = _team_for_features(home_team)
+        away_feat = _team_for_features(away_team)
+        home_is_host = home_feat in HOSTS_2026
+        away_is_host = away_feat in HOSTS_2026
+        overrides["is_neutral_venue"] = 1 if (not home_is_host and not away_is_host) else 0
+        overrides["home_advantage_strength"] = 1 if home_is_host else (-1 if away_is_host else 0)
     for col, val in overrides.items():
         if col in feature_cols:
             row[col] = val
@@ -129,9 +208,13 @@ def build_feature_row(
     return pd.DataFrame([row]).reindex(columns=feature_cols)
 
 
-def get_ml_medians() -> dict | None:
-    """Get median values for numeric features from ml_df."""
-    path = DATA_DIR / "ml_df.csv"
+def get_ml_medians(model_name: str = "") -> dict | None:
+    """Get median values for numeric features. Use ml_df_v4 for v4, ml_df_v2 for v3."""
+    path = (
+        DATA_DIR / "ml_df_v4.csv" if model_name == "worldcup_model_v4"
+        else DATA_DIR / "ml_df_v2.csv" if model_name == "worldcup_model_v3"
+        else DATA_DIR / "ml_df.csv"
+    )
     if not path.exists():
         return None
     df = pd.read_csv(path, nrows=1000)
@@ -139,9 +222,13 @@ def get_ml_medians() -> dict | None:
     return numeric.median().to_dict()
 
 
-def _get_ml_template_row(feature_cols: list[str]) -> dict | None:
-    """Get a template row from ml_df to use as base for 2026 predictions."""
-    path = DATA_DIR / "ml_df.csv"
+def _get_ml_template_row(feature_cols: list[str], model_name: str = "") -> dict | None:
+    """Get a template row from ml_df/ml_df_v2/ml_df_v4 to use as base for 2026 predictions."""
+    path = (
+        DATA_DIR / "ml_df_v4.csv" if model_name == "worldcup_model_v4"
+        else DATA_DIR / "ml_df_v2.csv" if model_name == "worldcup_model_v3"
+        else DATA_DIR / "ml_df.csv"
+    )
     if not path.exists():
         return None
     df = pd.read_csv(path, nrows=500)
@@ -169,12 +256,13 @@ def predict_match(
     feature_cols = artifact.get("feature_cols", [])
     class_order = artifact.get("class_order", ["HomeWin", "Draw", "AwayWin"])
     score_models = artifact.get("score_models", {})
+    primary_prediction = artifact.get("primary_prediction", "outcome")
 
     rankings = load_rankings()
-    ml_medians = get_ml_medians()
+    ml_medians = get_ml_medians(model_name)
 
     X = build_feature_row(
-        home_team, away_team, stage, feature_cols, rankings, ml_medians
+        home_team, away_team, stage, feature_cols, rankings, ml_medians, model_name
     )
 
     # Ensure all feature cols present
@@ -184,20 +272,31 @@ def predict_match(
     pred_idx = int(np.argmax(proba))
     outcome = class_order[pred_idx]
 
+    home_goals = away_goals = 0
+    if score_models:
+        home_model = score_models.get("home_goals")
+        away_model = score_models.get("away_goals")
+        if home_model and away_model:
+            raw_home = float(np.clip(home_model.predict(X)[0], 0, 10))
+            raw_away = float(np.clip(away_model.predict(X)[0], 0, 10))
+            # Deterministic seed: same match always gets same score
+            seed = int(hashlib.md5(f"{home_team}|{away_team}".encode()).hexdigest()[:8], 16)
+            # Weighted sample from direction-constrained scores for variety
+            home_goals, away_goals = _lambda_to_score(raw_home, raw_away, seed=seed)
+            # Derive outcome from Poisson score
+            if primary_prediction == "score":
+                outcome = (
+                    "HomeWin" if home_goals > away_goals
+                    else "AwayWin" if away_goals > home_goals
+                    else "Draw"
+                )
+
     outcome_labels = {
         "HomeWin": f"{home_team} wins",
         "Draw": "Draw",
         "AwayWin": f"{away_team} wins",
     }
     outcome_label = outcome_labels.get(outcome, outcome)
-
-    home_goals = away_goals = 0
-    if score_models:
-        home_model = score_models.get("home_goals")
-        away_model = score_models.get("away_goals")
-        if home_model and away_model:
-            home_goals = _round_goal(float(home_model.predict(X)[0]))
-            away_goals = _round_goal(float(away_model.predict(X)[0]))
 
     idx_home = class_order.index("HomeWin") if "HomeWin" in class_order else 0
     idx_draw = class_order.index("Draw") if "Draw" in class_order else 1

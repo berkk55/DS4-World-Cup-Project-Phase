@@ -12,7 +12,7 @@ PROJECT_ROOT = APP_ROOT.parent
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 
-# Map 2026 team names to rankings.csv team_name
+# Map 2026 team names to rankings.csv team_name (for get_ranking_score)
 TEAM_NAME_MAP = {
     "South Korea": "Korea Republic",
     "Korea Republic": "Korea Republic",
@@ -39,6 +39,18 @@ TEAM_NAME_MAP = {
     "St Vincent and the Grenadines": "St Vincent and the Grenadines",
     "Venezuela": "Venezuela",
 }
+
+# Map 2026 schedule team names to ml_df_v2 format (for feature encoding)
+# ml_df uses "United States", "Iran"; 2026 schedule uses "USA", "IR Iran"
+FEATURE_TEAM_MAP = {
+    "USA": "United States",
+    "IR Iran": "Iran",
+}
+
+
+def _team_for_features(team: str) -> str:
+    """Return team name in format used by ml_df training data."""
+    return FEATURE_TEAM_MAP.get(team, team)
 
 
 def load_2026_schedule() -> pd.DataFrame:
@@ -140,10 +152,32 @@ def normalize_stage(stage: str) -> str:
     return STAGE_MAP.get(key, stage)
 
 
-def get_available_models() -> list[str]:
-    """List .joblib model files in models folder."""
+# Map model file stems to display names (XGBoost_v3 Best, XGBoost_v1, XGBoost_v2)
+MODEL_DISPLAY_NAMES = {
+    "worldcup_model_v4": "XGBoost_v4 (Best Model)",
+    "worldcup_model_v3": "XGBoost_v3",
+    "worldcup_model": "XGBoost_v1",
+    "worldcup_model2": "XGBoost_v2",
+}
+
+
+def get_available_models() -> list[tuple[str, str]]:
+    """List (display_name, file_stem) for .joblib models. v3 first."""
     if not MODELS_DIR.exists():
         return []
-    return sorted(
-        f.stem for f in MODELS_DIR.glob("*.joblib") if f.stat().st_size > 0
-    )
+    stems = sorted(f.stem for f in MODELS_DIR.glob("*.joblib") if f.stat().st_size > 0)
+    result = [(MODEL_DISPLAY_NAMES.get(s, s), s) for s in stems]
+
+    def _order(item):
+        _, stem = item
+        if "v4" in stem:
+            return (0, stem)
+        if "v3" in stem:
+            return (1, stem)
+        if "v2" in stem:
+            return (2, stem)
+        if stem == "worldcup_model":
+            return (3, stem)
+        return (4, stem)
+
+    return sorted(result, key=_order)
