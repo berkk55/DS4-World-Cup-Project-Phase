@@ -57,9 +57,9 @@ def main() -> None:
     )
 
     matches_df = get_2026_matches_with_teams()
-    models = get_available_models()
+    models_with_display = get_available_models()
 
-    if not models:
+    if not models_with_display:
         st.warning("No models found in the models folder. Add a .joblib model to enable predictions.")
         return
 
@@ -70,13 +70,14 @@ def main() -> None:
     teams = get_unique_teams_2026()
     stages = get_unique_stages_2026()
 
-    with st.form("prediction_form"):
-        match_type = st.radio(
-            "Match selection",
-            ["From schedule", "Custom"],
-            horizontal=True,
-        )
+    # Radio outside form so changing it triggers re-run and updates the form layout
+    match_type = st.radio(
+        "Match selection",
+        ["From schedule", "Custom"],
+        horizontal=True,
+    )
 
+    with st.form("prediction_form"):
         if match_type == "From schedule":
             options = [format_match_option(row) for _, row in matches_df.iterrows()]
             match_idx = st.selectbox("Select match", range(len(options)), format_func=lambda i: options[i])
@@ -91,7 +92,14 @@ def main() -> None:
             stage = st.selectbox("Stage", stages) if stages else "Group Stage"
             match_row = None
 
-        model_name = st.selectbox("Model", models)
+        display_names = [m[0] for m in models_with_display]
+        model_idx = st.selectbox(
+            "Model",
+            range(len(display_names)),
+            format_func=lambda i: display_names[i],
+            index=0,
+        )
+        model_name = models_with_display[model_idx][1]
 
         submitted = st.form_submit_button("Predict")
 
@@ -121,15 +129,6 @@ def main() -> None:
                     st.metric("Predicted score", f"{result['home_goals']} – {result['away_goals']}")
                 with col3:
                     st.metric("Match", f"{home_team} vs {away_team}")
-
-                st.markdown("**Probabilities**")
-                col_p1, col_p2, col_p3 = st.columns(3)
-                with col_p1:
-                    st.metric("Home win", f"{result['proba_home']:.3%}")
-                with col_p2:
-                    st.metric("Draw", f"{result['proba_draw']:.3%}")
-                with col_p3:
-                    st.metric("Away win", f"{result['proba_away']:.3%}")
 
 
 if __name__ == "__main__":
