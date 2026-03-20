@@ -1,6 +1,5 @@
 # DS4-World-Cup-Project-Phase
 
-24.01.2026 - WorkShop  
 ⚽ Igniting Passion. Creating Champions.
 
 Football is a game of emotion, but success is a game of numbers. In this project, our team (Valyo, Berk & Jean Philippe) analyzes historical World Cup data to decode the DNA of a champion.
