@@ -1,0 +1,57 @@
+from zipfile import Path
+
+import pandas as pd
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, f1_score, classification_report
+import matplotlib.pyplot as plt
+from sklearn.tree import plot_tree
+from pathlib import Path
+
+#Didnt work: df = pd.read_csv("../test_analysis/ml_df_test_bab.csv")
+
+skript_ordner = Path(__file__).parent
+csv_pfad = skript_ordner / ".." / "test_analysis" / "ml_df_test_bab.csv"
+df = pd.read_csv(csv_pfad.resolve())
+
+df_train = df[df["year"] <= 2018]
+prediction = df[df['year'] == 2022]
+
+y_train = df_train["result_target"]
+
+relevant_columns =[
+    'elo_diff', 'win_rate_diff', 'goal_diff_diff', 'form_diff', 
+    'goals_per_match_diff', 'conceded_per_match_diff',
+    
+    'home_elo_before', 'away_elo_before',
+    'home_total_win_rate_before', 'away_total_win_rate_before',
+    'home_goal_diff_per_match_before', 'away_goal_diff_per_match_before',
+    
+    'home_last5_win_rate', 'away_last5_win_rate',
+    'home_last5_goal_diff', 'away_last5_goal_diff',
+    
+
+    'home_tournaments_played_before', 'away_tournaments_played_before',
+    'home_has_won_world_cup_before', 'away_has_won_world_cup_before',
+    'home_is_defending_champion', 'away_is_defending_champion'
+]
+
+x_train = df_train[relevant_columns]
+x_train = x_train.select_dtypes(exclude=['object'])
+
+y_test = prediction["result_target"]
+x_test = prediction[relevant_columns]
+x_test = x_test.select_dtypes(exclude=['object'])
+
+tree_model = DecisionTreeClassifier(
+    max_depth=3,               
+    class_weight='balanced', 
+    min_samples_leaf=1,  
+    min_samples_split=2,
+    random_state=42
+)
+
+tree_model.fit(x_train, y_train)
+y_pred = tree_model.predict(x_test)
+
+print("\n Classification Report for the old model: \n" , classification_report(y_test, y_pred))
+
